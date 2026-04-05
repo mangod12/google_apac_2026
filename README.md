@@ -61,7 +61,7 @@ curl -X POST https://taskforge-888893197774.asia-south1.run.app/execute \
                     +-----------------------+
 ```
 
-All agents use **Gemini 2.0 Flash** via function calling. Each agent has deterministic fallback logic that produces realistic operational output when the LLM is unavailable.
+All agents use **Gemini 2.5 Flash** via function calling. Tools are exposed via **MCP (Model Context Protocol)** over SSE transport. Each agent has deterministic fallback logic that produces realistic operational output when the LLM is unavailable.
 
 ---
 
@@ -95,12 +95,47 @@ The system returns **16 structured fields** per execution:
 
 ---
 
+## MCP Integration (Model Context Protocol)
+
+All 7 tools are exposed via an **MCP server** embedded in the FastAPI app using SSE transport:
+
+| MCP Tool | Category | Description |
+|----------|----------|-------------|
+| `create_subtask` | Task Manager | Create subtasks under a parent task |
+| `update_task_status` | Task Manager | Update task lifecycle status |
+| `estimate_effort` | Task Manager | Estimate hours/days for a task |
+| `knowledge_lookup` | Notes/Memory | Search stored knowledge entries |
+| `schedule_delivery` | Calendar | Schedule logistics deliveries |
+| `live_weather` | Data Source | Real-time weather from Open-Meteo API |
+| `disaster_check` | Data Source | Flood warnings from Open-Meteo Flood API |
+
+**MCP endpoints:**
+- `GET /mcp/sse` — SSE connection for MCP clients
+- `POST /mcp/messages` — MCP message handler
+
+**How agents use MCP:** Each agent's tool calls route through an MCP client (`app/mcp_client.py`) that connects to the embedded MCP server via SSE. This proves full MCP compliance — tools are discovered, invoked, and results returned through the MCP protocol layer. Falls back to direct registry if MCP is unavailable.
+
+```python
+# Connect to TaskForge MCP server from any MCP client
+from mcp.client.sse import sse_client
+from mcp import ClientSession
+
+async with sse_client("https://taskforge-888893197774.asia-south1.run.app/mcp/sse") as (r, w):
+    async with ClientSession(r, w) as session:
+        await session.initialize()
+        tools = await session.list_tools()        # 7 tools
+        result = await session.call_tool("live_weather", {"location_name": "mumbai"})
+```
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | API | **FastAPI** + Uvicorn (async, production-grade) |
-| LLM | **Google Gemini 2.0 Flash** via `google-genai` SDK |
+| LLM | **Google Gemini 2.5 Flash** via `google-genai` SDK |
+| MCP | **Model Context Protocol** (SSE transport, 7 tools) |
 | Database | **PostgreSQL 16** + SQLAlchemy 2.0 (fully async with asyncpg) |
 | Migrations | Alembic |
 | Frontend | Built-in HTML/CSS/JS dashboard (served by FastAPI, no separate build) |
@@ -141,8 +176,10 @@ app/
     context.py         # ContextManager for agent memory persistence
   static/
     index.html         # Interactive dashboard (dark theme, responsive)
+  mcp_server.py        # MCP server — 7 tools via SSE transport
+  mcp_client.py        # MCP client — routes agent tool calls through MCP
   config.py            # pydantic-settings (env vars + .env)
-  main.py              # App entry point, startup, CORS, routing
+  main.py              # App entry point, startup, CORS, MCP mount, routing
 tests/
   conftest.py          # Async fixtures, real PostgreSQL, session-scoped
   test_health.py       # Health + DB connectivity

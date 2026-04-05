@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes_health import router as health_router
 from app.api.routes_tasks import demo_router, router as tasks_router
 from app.config import settings
+from app.mcp_server import mcp as mcp_server
 
 # ── Logging setup ────────────────────────────────────────
 
@@ -108,6 +109,34 @@ async def on_shutdown() -> None:
 app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(demo_router)
+
+
+# ── MCP Server (Model Context Protocol) ─────────────────
+
+from mcp.server.sse import SseServerTransport
+from starlette.requests import Request
+from starlette.routing import Route
+
+_sse_transport = SseServerTransport("/mcp/messages")
+
+
+@app.get("/mcp/sse")
+async def mcp_sse_endpoint(request: Request):
+    """SSE endpoint for MCP client connections."""
+    async with _sse_transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as (read_stream, write_stream):
+        await mcp_server._mcp_server.run(
+            read_stream, write_stream,
+            mcp_server._mcp_server.create_initialization_options(),
+        )
+
+
+from starlette.routing import Mount as _Mount
+app.router.routes.append(
+    _Mount("/mcp/messages", app=_sse_transport.handle_post_message)
+)
+logger.info("MCP server mounted at /mcp/sse (SSE transport)")
 
 
 # ── Static files + Root ──────────────────────────────────

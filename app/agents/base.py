@@ -189,7 +189,9 @@ class BaseAgent(ABC):
                 reasoning_steps.append(f"[Tool call] {tool_name}({tool_args})")
                 logger.info(f"[{self.name}] calling tool: {tool_name} args={tool_args}")
 
-                tool_result = await tool_registry.execute(tool_name, tool_args)
+                # Route tool calls through MCP protocol (falls back to direct registry)
+                from app.mcp_client import call_tool_via_mcp
+                tool_result = await call_tool_via_mcp(tool_name, tool_args)
 
                 reasoning_steps.append(f"[Tool result] {str(tool_result)[:200]}")
 
