@@ -117,3 +117,4 @@ class ExecuteResponse(BaseModel):
     replanning: Optional[dict[str, Any]] = None
     system_reliability: SystemReliability = Field(default_factory=SystemReliability)
     outcome_summary: str = ""
+    reasoning_trace: list[dict[str, Any]] = Field(default_factory=list)

@@ -55,7 +55,7 @@ STYLE RULES:
 class ResourceAgent(BaseAgent):
     name = "resource"
     system_prompt = _SYSTEM_PROMPT
-    available_tools = ["knowledge_lookup"]
+    available_tools = ["knowledge_lookup", "live_weather", "disaster_check"]
 
     async def run(
         self,

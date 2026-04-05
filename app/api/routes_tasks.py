@@ -46,6 +46,7 @@ async def _run_pipeline(task_id: uuid.UUID, task_title: str, task_description: s
     import app.tools.task_tools       # noqa: F401
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
+    import app.tools.weather_tool     # noqa: F401
 
     orchestrator = OrchestratorAgent()
     try:
@@ -106,6 +107,7 @@ def _build_execute_response(
     impact_analysis: dict | None = None,
     outcome_summary: str = "",
     system_reliability: dict | None = None,
+    reasoning_trace: list[dict] | None = None,
 ) -> ExecuteResponse:
     """Build a clean synchronous demo response from stored task results."""
     from app.schemas.task_schemas import SystemReliability
@@ -131,6 +133,7 @@ def _build_execute_response(
         replanning=replanning,
         outcome_summary=outcome_summary,
         system_reliability=SystemReliability(**(system_reliability or {})),
+        reasoning_trace=reasoning_trace or [],
     )
 
 
@@ -186,6 +189,7 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
     import app.tools.task_tools       # noqa: F401
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
+    import app.tools.weather_tool     # noqa: F401
 
     async with async_session_factory() as session:
         repo = TaskRepository(session)
@@ -235,6 +239,7 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
         impact_analysis=result.output.get("impact_analysis"),
         outcome_summary=result.output.get("outcome_summary", ""),
         system_reliability=result.output.get("system_reliability"),
+        reasoning_trace=result.output.get("reasoning_trace", []),
     )
 
 

@@ -93,6 +93,13 @@
   .outcome-bar { background: linear-gradient(135deg, #3b82f615, #22c55e15); border: 1px solid #3b82f644; border-radius: .5rem; padding: 1rem 1.25rem; margin-top: 1.25rem; text-align: center; }
   .outcome-text { font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: .01em; }
 
+  .card-reasoning { background: #8b5cf60a; border: 1px solid #8b5cf633; }
+  .card-reasoning h3 { color: #a78bfa; }
+  .reasoning-entry { margin-bottom: .75rem; padding: .6rem .85rem; background: var(--bg); border-radius: .4rem; border-left: 3px solid #8b5cf6; }
+  .reasoning-agent { font-size: .78rem; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .25rem; }
+  .reasoning-agent .token-badge { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: .5rem; font-size: .72rem; }
+  .reasoning-thought { font-size: .84rem; line-height: 1.5; color: var(--muted); white-space: pre-line; }
+
   .card-impact { background: #ef44440d; border: 1px solid #ef444433; }
   .card-impact h3 { color: var(--red); }
   .impact-row { display: flex; gap: .5rem; font-size: .88rem; padding: .2rem 0; }
@@ -220,6 +227,12 @@
     <div class="themed-card card-impact" id="impactCard" style="display:none">
       <h3>&#x1F6A8; Without TaskForge</h3>
       <div id="impactBody"></div>
+    </div>
+
+    <!-- Reasoning Trace -->
+    <div class="themed-card card-reasoning" id="reasoningCard" style="display:none">
+      <h3>&#x1F9E0; Agent Reasoning Chain</h3>
+      <div id="reasoningBody"></div>
     </div>
 
     <!-- Grid -->
@@ -377,6 +390,20 @@ function render(d) {
   } else {
     re.innerHTML = '<span class="no-replan">\u2713 No replanning needed.</span>';
   }
+
+  // Reasoning trace
+  const rt = d.reasoning_trace || [];
+  const rtCard = document.getElementById('reasoningCard');
+  if (rt.length) {
+    rtCard.style.display = '';
+    document.getElementById('reasoningBody').innerHTML = rt.map(r => {
+      const tokens = r.tokens ? '<span class="token-badge">' + r.tokens + ' tokens</span>' : '';
+      return '<div class="reasoning-entry">' +
+        '<div class="reasoning-agent">' + (r.agent || 'Agent') + tokens + '</div>' +
+        '<div class="reasoning-thought">' + (r.thought || '').replace(/</g, '&lt;') + '</div>' +
+        '</div>';
+    }).join('');
+  } else { rtCard.style.display = 'none'; }
 
   // Outcome summary
   const ob = document.getElementById('outcomeBar');

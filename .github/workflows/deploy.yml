@@ -61,9 +61,8 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:taskforge-db \
             --set-env-vars="DATABASE_URL=postgresql+asyncpg://postgres:taskforge2026@/taskforge?host=/cloudsql/${{ env.PROJECT_ID }}:${{ env.REGION }}:taskforge-db" \
-            --set-env-vars="VERTEX_AI_PROJECT=${{ env.PROJECT_ID }}" \
-            --set-env-vars="VERTEX_AI_LOCATION=${{ env.REGION }}" \
-            --set-env-vars="GEMINI_MODEL=gemini-2.0-flash" \
+            --set-env-vars="GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
+            --set-env-vars="GEMINI_MODEL=gemini-2.5-flash" \
             --set-env-vars="LOG_LEVEL=INFO" \
             --memory=1Gi \
             --timeout=300 \

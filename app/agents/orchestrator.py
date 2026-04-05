@@ -513,6 +513,7 @@ class OrchestratorAgent(BaseAgent):
 
         # Step 4: Replanning — ALWAYS fires for crisis queries
         replan_data = {}
+        replan_result = None
         should_replan = risk_level == "critical" or force_replan
 
         if should_replan:
@@ -693,6 +694,33 @@ class OrchestratorAgent(BaseAgent):
 
         crisis_context = _extract_crisis_context(task_title, fb, risk_level)
 
+        # Build reasoning trace — expose LLM thought process
+        reasoning_trace: list[dict[str, str]] = []
+        if resource_result.reasoning:
+            reasoning_trace.append({
+                "agent": "ResourceAgent",
+                "thought": resource_result.reasoning[:300],
+                "tokens": resource_result.token_usage,
+            })
+        if planning_result.reasoning:
+            reasoning_trace.append({
+                "agent": "PlanningAgent",
+                "thought": planning_result.reasoning[:300],
+                "tokens": planning_result.token_usage,
+            })
+        if execution_result.reasoning:
+            reasoning_trace.append({
+                "agent": "ExecutionAgent",
+                "thought": execution_result.reasoning[:300],
+                "tokens": execution_result.token_usage,
+            })
+        if should_replan and replan_data and replan_result and replan_result.reasoning:
+            reasoning_trace.append({
+                "agent": "ReplanningAgent",
+                "thought": replan_result.reasoning[:300],
+                "tokens": replan_result.token_usage,
+            })
+
         impact_analysis = _build_impact_analysis(fb, risk_level, crisis_context, replan_data)
         insights = _build_insights(fb, risk_level, crisis_context, plan_data, resource_data, replan_data)
         risk_notes = _build_risk_notes(fb, crisis_context, risk_level, plan_data, replan_data)
@@ -720,6 +748,7 @@ class OrchestratorAgent(BaseAgent):
                 "system_state": system_state,
                 "impact_analysis": impact_analysis,
                 "outcome_summary": outcome_summary,
+                "reasoning_trace": reasoning_trace,
                 "system_reliability": {
                     "tests_passed": "34/34",
                     "pipeline_validated": True,

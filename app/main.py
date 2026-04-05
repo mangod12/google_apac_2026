@@ -81,6 +81,7 @@ async def on_startup() -> None:
     import app.tools.task_tools       # noqa: F401
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
+    import app.tools.weather_tool     # noqa: F401
     logger.info("Tools registered.")
 
     logger.info(
