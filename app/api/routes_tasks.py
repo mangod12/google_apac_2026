@@ -328,13 +328,19 @@ async def _warmup_one(q: str) -> None:
 
 
 async def _warmup_presets(queries: list[str]) -> None:
-    """Run all preset pipelines concurrently."""
+    """Run preset pipelines with bounded concurrency to avoid Gemini rate limits."""
     import asyncio
     pending = [q for q in queries if q not in _response_cache]
     if not pending:
         return
-    logger.info(f"[warmup] launching {len(pending)} presets in parallel")
-    await asyncio.gather(*[_warmup_one(q) for q in pending])
+    sem = asyncio.Semaphore(2)  # Max 2 pipelines at once (each makes ~10 Gemini calls)
+
+    async def _throttled(q: str) -> None:
+        async with sem:
+            await _warmup_one(q)
+
+    logger.info(f"[warmup] launching {len(pending)} presets (2 at a time)")
+    await asyncio.gather(*[_throttled(q) for q in pending])
     logger.info(f"[warmup] all done — {len(_response_cache)} cached")
 
 
