@@ -76,8 +76,13 @@ class GeminiClient:
         if response.usage_metadata:
             token_usage = getattr(response.usage_metadata, "total_token_count", 0) or 0
 
+        try:
+            text = response.text or ""
+        except (ValueError, AttributeError):
+            text = ""
+
         return {
-            "text": response.text or "",
+            "text": text,
             "token_usage": token_usage,
         }
 
@@ -164,16 +169,26 @@ class GeminiClient:
 
         # Check for function calls in response
         function_calls = []
+        parts = None
         if response.candidates:
-            for part in response.candidates[0].content.parts:
+            content = getattr(response.candidates[0], "content", None)
+            if content:
+                parts = getattr(content, "parts", None)
+        if parts:
+            for part in parts:
                 if part.function_call:
                     function_calls.append({
                         "name": part.function_call.name,
                         "args": dict(part.function_call.args) if part.function_call.args else {},
                     })
 
+        try:
+            text = response.text if not function_calls else None
+        except (ValueError, AttributeError):
+            text = None
+
         return {
-            "text": response.text if not function_calls else None,
+            "text": text,
             "function_calls": function_calls if function_calls else None,
             "token_usage": token_usage,
         }
