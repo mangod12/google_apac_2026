@@ -65,7 +65,9 @@ jobs:
             --set-env-vars="GEMINI_MODEL=gemini-2.5-flash" \
             --set-env-vars="LOG_LEVEL=INFO" \
             --memory=1Gi \
+            --cpu=1 \
             --timeout=300 \
+            --startup-cpu-boost \
             --min-instances=1 \
             --max-instances=3 \
             --project ${{ env.PROJECT_ID }}
