@@ -7,10 +7,13 @@ Endpoints:
   GET    /api/v1/tasks/{id}      — Get task details + subtasks
   GET    /api/v1/tasks/{id}/logs — Get agent execution logs
   DELETE /api/v1/tasks/{id}      — Delete a task
+  POST   /execute                — Synchronous demo (cached for presets)
+  POST   /warmup                 — Pre-populate cache for preset scenarios
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -33,6 +36,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 demo_router = APIRouter(tags=["demo"])
+
+# ── Response cache for demo presets ────────────────────────
+_response_cache: dict[str, dict] = {}
+
+PRESET_QUERIES = [
+    "Flood in Odisha causing food shortage across 3 districts — 300 units needed urgently",
+    "Cyclone hitting Chennai coast — 500 units of medical supplies required for coastal villages",
+    "Earthquake in Gujarat — emergency shelter and water supply for 200 displaced families",
+    "Drought in Rajasthan causing water crisis — 400 units of drinking water needed across 5 tehsils",
+    "Landslide blocking NH-10 in Uttarakhand — reroute 150 units of food and medicine to Kedarnath",
+    "Routine supply check for Mumbai central warehouse — 100 units rice, standard restock",
+]
 
 
 # ── Helper: Run pipeline in background ───────────────────
@@ -176,13 +191,8 @@ async def create_task(
     )
 
 
-@demo_router.post(
-    "/execute",
-    response_model=ExecuteResponse,
-    summary="Execute a task synchronously for demos",
-)
-async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
-    """Run the existing orchestrator pipeline synchronously and return a clean result."""
+async def _run_pipeline_and_build_response(query: str) -> ExecuteResponse:
+    """Run the full orchestrator pipeline for a query and return the response."""
     from app.agents.orchestrator import OrchestratorAgent
     from app.db.models import TaskStatus
 
@@ -193,20 +203,14 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
 
     async with async_session_factory() as session:
         repo = TaskRepository(session)
-        task = await repo.create(
-            title=payload.query,
-            description=payload.query,
-            priority="medium",
-        )
+        task = await repo.create(title=query, description=query, priority="medium")
         task_id = task.id
 
     t_start = time.monotonic()
 
     orchestrator = OrchestratorAgent()
     result = await orchestrator.run(
-        task_id=task_id,
-        task_title=payload.query,
-        task_description=payload.query,
+        task_id=task_id, task_title=query, task_description=query,
     )
 
     if not result.success:
@@ -241,6 +245,65 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
         system_reliability=result.output.get("system_reliability"),
         reasoning_trace=result.output.get("reasoning_trace", []),
     )
+
+
+@demo_router.post(
+    "/execute",
+    response_model=ExecuteResponse,
+    summary="Execute a task synchronously for demos",
+)
+async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
+    """Run the orchestrator pipeline. Returns cached response for preset scenarios."""
+    cache_key = payload.query.strip()
+
+    # Return cached response if available
+    if cache_key in _response_cache:
+        logger.info(f"[execute] cache hit for: {cache_key[:60]}")
+        cached = _response_cache[cache_key]
+        return ExecuteResponse(**cached)
+
+    # Run full pipeline
+    response = await _run_pipeline_and_build_response(cache_key)
+
+    # Cache the result
+    _response_cache[cache_key] = response.model_dump()
+    logger.info(f"[execute] cached response for: {cache_key[:60]}")
+
+    return response
+
+
+@demo_router.post(
+    "/warmup",
+    summary="Pre-populate cache for preset demo scenarios",
+)
+async def warmup_cache(background_tasks: BackgroundTasks) -> dict:
+    """Trigger background warmup for all 6 preset scenarios."""
+    already = [q for q in PRESET_QUERIES if q in _response_cache]
+    pending = [q for q in PRESET_QUERIES if q not in _response_cache]
+
+    if pending:
+        background_tasks.add_task(_warmup_presets, pending)
+
+    return {
+        "status": "warming" if pending else "ready",
+        "cached": len(already),
+        "warming": len(pending),
+        "total": len(PRESET_QUERIES),
+    }
+
+
+async def _warmup_presets(queries: list[str]) -> None:
+    """Run pipeline for each preset query and cache the results."""
+    for q in queries:
+        if q in _response_cache:
+            continue
+        try:
+            logger.info(f"[warmup] running: {q[:60]}")
+            response = await _run_pipeline_and_build_response(q)
+            _response_cache[q] = response.model_dump()
+            logger.info(f"[warmup] cached: {q[:60]}")
+        except Exception as e:
+            logger.error(f"[warmup] failed for '{q[:60]}': {e}")
 
 
 @router.get(

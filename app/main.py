@@ -89,6 +89,12 @@ async def on_startup() -> None:
         f"vertex_ai={settings.use_vertex_ai}"
     )
 
+    # Auto-warmup: pre-cache preset demo scenarios in the background
+    import asyncio
+    from app.api.routes_tasks import _warmup_presets, PRESET_QUERIES
+    asyncio.create_task(_warmup_presets(PRESET_QUERIES))
+    logger.info(f"Background warmup started for {len(PRESET_QUERIES)} preset scenarios.")
+
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:

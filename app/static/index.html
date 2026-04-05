@@ -262,11 +262,14 @@ async function runSimulation() {
   errEl.innerHTML = '';
   results.style.display = 'none';
   try {
+    const t0 = performance.now();
     const resp = await fetch('/execute', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query })
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(resp.status + ': ' + t.slice(0, 200)); }
+    const fetchElapsed = (performance.now() - t0) / 1000;
+    document.getElementById('execTime').dataset.elapsed = fetchElapsed.toFixed(1);
     render(await resp.json());
     results.style.display = 'block';
   } catch (e) {
@@ -289,7 +292,9 @@ function render(d) {
   cl.textContent = 'Confidence: ' + pct + '%';
   cl.style.color = fill.style.background;
   const et = d.execution_time || '';
-  document.getElementById('execTime').innerHTML = et ? '\u26A1 ' + et : '';
+  const elapsed = parseFloat(document.getElementById('execTime').dataset.elapsed || '999');
+  const cachedTag = elapsed < 2 ? ' <span style="color:var(--green);font-size:.75rem">(cached)</span>' : '';
+  document.getElementById('execTime').innerHTML = et ? '\u26A1 ' + et + cachedTag : '';
 
   // Crisis context
   const cc = d.crisis_context;
