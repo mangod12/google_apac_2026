@@ -115,9 +115,8 @@ app.include_router(demo_router)
 
 from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
-from starlette.routing import Route
 
-_sse_transport = SseServerTransport("/mcp/messages")
+_sse_transport = SseServerTransport("/mcp/messages/")
 
 
 @app.get("/mcp/sse")
@@ -132,9 +131,9 @@ async def mcp_sse_endpoint(request: Request):
         )
 
 
-from starlette.routing import Mount as _Mount
+from starlette.routing import Mount as _Mount  # noqa: E402
 app.router.routes.append(
-    _Mount("/mcp/messages", app=_sse_transport.handle_post_message)
+    _Mount("/mcp/messages/", app=_sse_transport.handle_post_message)
 )
 logger.info("MCP server mounted at /mcp/sse (SSE transport)")
 
