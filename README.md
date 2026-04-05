@@ -136,7 +136,7 @@ async with sse_client("https://taskforge-888893197774.asia-south1.run.app/mcp/ss
 | API | **FastAPI** + Uvicorn (async, production-grade) |
 | LLM | **Google Gemini 2.5 Flash** via `google-genai` SDK |
 | MCP | **Model Context Protocol** (SSE transport, 7 tools) |
-| Database | **PostgreSQL 16** + SQLAlchemy 2.0 (fully async with asyncpg) |
+| Database | **PostgreSQL 16** + SQLAlchemy 2.0 (async) + **pgvector** (semantic search) |
 | Migrations | Alembic |
 | Frontend | Built-in HTML/CSS/JS dashboard (served by FastAPI, no separate build) |
 | Testing | pytest + pytest-asyncio + httpx (34 E2E tests, 100% pass) |

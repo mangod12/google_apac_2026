@@ -142,8 +142,38 @@ class MemoryRepository:
         return entry
 
     async def search(self, query: str, limit: int = 10) -> Sequence[MemoryEntry]:
-        """Keyword search across memory entries. Splits query into words and
-        matches entries containing ANY of the keywords (OR logic)."""
+        """Semantic vector search with keyword fallback.
+
+        Tries pgvector cosine similarity first (if embeddings exist).
+        Falls back to keyword ILIKE search if vector search fails or
+        returns no results.
+        """
+        # Try vector search first
+        try:
+            results = await self._vector_search(query, limit)
+            if results:
+                return results
+        except Exception:
+            pass
+
+        # Fallback: keyword search (OR across words)
+        return await self._keyword_search(query, limit)
+
+    async def _vector_search(self, query: str, limit: int) -> Sequence[MemoryEntry]:
+        """Search using pgvector cosine distance on embeddings."""
+        from app.llm.embeddings import generate_embedding
+
+        query_embedding = await generate_embedding(query)
+        result = await self.session.execute(
+            select(MemoryEntry)
+            .where(MemoryEntry.embedding.isnot(None))
+            .order_by(MemoryEntry.embedding.cosine_distance(query_embedding))
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def _keyword_search(self, query: str, limit: int) -> Sequence[MemoryEntry]:
+        """Fallback keyword search — splits query into words, OR logic."""
         from sqlalchemy import or_
 
         keywords = [w.strip() for w in query.split() if len(w.strip()) >= 3]

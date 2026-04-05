@@ -70,13 +70,15 @@ app.add_middleware(
 async def on_startup() -> None:
     logger.info("TaskForge starting up...")
 
-    # Create DB tables
+    # Create DB tables (with pgvector extension)
     from app.db.database import engine
     from app.db.models import Base
+    from sqlalchemy import text as sa_text
 
     async with engine.begin() as conn:
+        await conn.execute(sa_text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables verified/created.")
+    logger.info("Database tables verified/created (pgvector enabled).")
 
     # Register all tools (imports trigger tool_registry.register calls)
     import app.tools.task_tools       # noqa: F401

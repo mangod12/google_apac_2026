@@ -19,6 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
+from pgvector.sqlalchemy import Vector
 import enum
 
 
@@ -115,4 +116,5 @@ class MemoryEntry(Base):
         nullable=False,
     )
     metadata_ = Column("metadata", JSONB, nullable=True)
+    embedding = Column(Vector(3072), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

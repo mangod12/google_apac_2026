@@ -200,30 +200,47 @@ SEED_ENTRIES = [
 
 
 async def seed_knowledge_base() -> int:
-    """Insert seed data into memory_entries if not already present.
+    """Insert seed data into memory_entries with vector embeddings.
 
-    Returns number of entries inserted.
+    Uses Gemini embedding model for semantic search via pgvector.
+    Skips if data already exists. Returns number of entries inserted.
     """
     from app.db.database import async_session_factory
+    from app.db.models import MemoryEntry
     from app.db.repositories import MemoryRepository
 
     async with async_session_factory() as session:
         repo = MemoryRepository(session)
 
-        # Check if already seeded (look for a distinctive entry)
         existing = await repo.search("Bhubaneswar Regional Depot inventory", limit=1)
         if existing:
-            logger.info(f"[seed] Knowledge base already seeded ({len(SEED_ENTRIES)} entries exist)")
+            logger.info(f"[seed] Knowledge base already seeded")
             return 0
 
+        # Generate embeddings for all entries
+        embeddings = []
+        try:
+            from app.llm.embeddings import generate_embedding
+            logger.info(f"[seed] Generating embeddings for {len(SEED_ENTRIES)} entries...")
+            for entry in SEED_ENTRIES:
+                emb = await generate_embedding(entry["content"][:500])
+                embeddings.append(emb)
+            logger.info(f"[seed] Embeddings generated successfully")
+        except Exception as e:
+            logger.warning(f"[seed] Embedding generation failed: {e}, seeding without vectors")
+            embeddings = [None] * len(SEED_ENTRIES)
+
         count = 0
-        for entry in SEED_ENTRIES:
-            await repo.save(
+        for i, entry in enumerate(SEED_ENTRIES):
+            mem = MemoryEntry(
                 content=entry["content"],
                 entry_type=entry["entry_type"],
-                metadata=entry.get("metadata"),
+                metadata_=entry.get("metadata"),
+                embedding=embeddings[i],
             )
+            session.add(mem)
             count += 1
 
-        logger.info(f"[seed] Inserted {count} knowledge base entries")
+        await session.commit()
+        logger.info(f"[seed] Inserted {count} knowledge base entries with embeddings")
         return count
