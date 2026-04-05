@@ -57,6 +57,18 @@ def _load_preset_cache() -> dict[str, dict]:
     return {}
 
 
+def _save_preset_cache() -> None:
+    """Persist in-memory preset cache to disk so it survives instance restarts."""
+    try:
+        preset_data = {k: v for k, v in _response_cache.items() if k in PRESET_QUERIES}
+        if preset_data:
+            with open(_PRESET_CACHE_FILE, "w", encoding="utf-8") as f:
+                _json.dump(preset_data, f, ensure_ascii=False)
+            logger.info(f"[cache] Saved {len(preset_data)} presets to preset_cache.json")
+    except Exception as e:
+        logger.warning(f"[cache] Failed to save preset_cache.json: {e}")
+
+
 _response_cache: dict[str, dict] = _load_preset_cache()
 
 PRESET_QUERIES = [
@@ -289,6 +301,7 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
     # Only cache preset scenarios — live queries should always hit Gemini
     if cache_key in PRESET_QUERIES:
         _response_cache[cache_key] = response.model_dump()
+        _save_preset_cache()
         logger.info(f"[execute] cached response for: {cache_key[:60]}")
 
     return response
@@ -322,6 +335,7 @@ async def _warmup_one(q: str) -> None:
         logger.info(f"[warmup] running: {q[:60]}")
         response = await _run_pipeline_and_build_response(q)
         _response_cache[q] = response.model_dump()
+        _save_preset_cache()
         logger.info(f"[warmup] cached: {q[:60]}")
     except Exception as e:
         logger.error(f"[warmup] failed for '{q[:60]}': {e}")
