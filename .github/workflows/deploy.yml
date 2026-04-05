@@ -66,7 +66,7 @@ jobs:
             --set-env-vars="LOG_LEVEL=INFO" \
             --memory=1Gi \
             --timeout=300 \
-            --min-instances=0 \
+            --min-instances=1 \
             --max-instances=3 \
             --project ${{ env.PROJECT_ID }}
 

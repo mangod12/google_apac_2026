@@ -13,7 +13,6 @@ Endpoints:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 import uuid
@@ -38,15 +37,35 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 demo_router = APIRouter(tags=["demo"])
 
 # ── Response cache for demo presets ────────────────────────
-_response_cache: dict[str, dict] = {}
+
+import json as _json
+from pathlib import Path as _Path
+
+_PRESET_CACHE_FILE = _Path(__file__).parent.parent / "preset_cache.json"
+
+
+def _load_preset_cache() -> dict[str, dict]:
+    """Load pre-computed Gemini responses for preset scenarios."""
+    if _PRESET_CACHE_FILE.exists():
+        try:
+            with open(_PRESET_CACHE_FILE, encoding="utf-8") as f:
+                data = _json.load(f)
+            logger.info(f"[cache] Loaded {len(data)} preset responses from preset_cache.json")
+            return data
+        except Exception as e:
+            logger.warning(f"[cache] Failed to load preset_cache.json: {e}")
+    return {}
+
+
+_response_cache: dict[str, dict] = _load_preset_cache()
 
 PRESET_QUERIES = [
-    "Flood in Odisha causing food shortage across 3 districts — 300 units needed urgently",
-    "Cyclone hitting Chennai coast — 500 units of medical supplies required for coastal villages",
-    "Earthquake in Gujarat — emergency shelter and water supply for 200 displaced families",
-    "Drought in Rajasthan causing water crisis — 400 units of drinking water needed across 5 tehsils",
-    "Landslide blocking NH-10 in Uttarakhand — reroute 150 units of food and medicine to Kedarnath",
-    "Routine supply check for Mumbai central warehouse — 100 units rice, standard restock",
+    "Flood in Odisha causing food shortage across 3 districts \u2014 300 units needed urgently",
+    "Cyclone hitting Chennai coast \u2014 500 units of medical supplies required for coastal villages",
+    "Earthquake in Gujarat \u2014 emergency shelter and water supply for 200 displaced families",
+    "Drought in Rajasthan causing water crisis \u2014 400 units of drinking water needed across 5 tehsils",
+    "Landslide blocking NH-10 in Uttarakhand \u2014 reroute 150 units of food and medicine to Kedarnath",
+    "Routine supply check for Mumbai central warehouse \u2014 100 units rice, standard restock",
 ]
 
 
