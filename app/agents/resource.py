@@ -27,6 +27,7 @@ When given a crisis scenario, you MUST:
 1. Use knowledge_lookup to pull existing inventory and resource data
 2. Audit stock levels against demand — flag deficits with exact quantities
 3. Classify risk: low, medium, high, or critical based on shortage severity and lead times
+4. If roads may be blocked (flood, landslide, cyclone), use find_nearest_hubs to identify airports and ports near the crisis zone for airlift or sea freight alternatives
 
 Your final response MUST be valid JSON with this structure:
 {
@@ -55,7 +56,7 @@ STYLE RULES:
 class ResourceAgent(BaseAgent):
     name = "resource"
     system_prompt = _SYSTEM_PROMPT
-    available_tools = ["knowledge_lookup", "live_weather", "disaster_check"]
+    available_tools = ["knowledge_lookup", "live_weather", "disaster_check", "find_nearest_hubs"]
 
     async def run(
         self,

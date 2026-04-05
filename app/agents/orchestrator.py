@@ -79,28 +79,89 @@ def _jitter(base: int, spread: int = 2) -> int:
 
 
 def _build_fallback_replan(fb: dict, crisis_context: dict) -> dict:
-    """Generate a realistic simulated disruption for demo scenarios."""
+    """Generate a realistic disruption replan using real airport/port data."""
+    from app.tools.route_tool import AIRPORTS, PORTS, _haversine_km, _resolve_city
+
     route = fb["route"]
     dest = fb["destination"]
     src = fb["source"]
     crisis = crisis_context.get("type", "disruption")
-    alt_route = "Route B (NH-59)"
+    location = crisis_context.get("location", dest)
+
+    # Resolve destination coordinates and find real nearby hubs
+    dest_coords = _resolve_city(location) or _resolve_city(dest.split()[0])
+    nearest_airport = None
+    nearest_port = None
+    alt_route_name = "Route B (NH-59)"  # default
+
+    if dest_coords:
+        d_lat, d_lon = dest_coords
+        # Find nearest airport
+        airports_by_dist = []
+        for ap in AIRPORTS:
+            dist = _haversine_km(d_lat, d_lon, ap["lat"], ap["lon"])
+            if dist < 400:
+                airports_by_dist.append((dist, ap))
+        airports_by_dist.sort(key=lambda x: x[0])
+        if airports_by_dist:
+            nearest_airport = airports_by_dist[0][1]
+            nearest_airport["distance_km"] = round(airports_by_dist[0][0], 1)
+            nearest_airport["airlift_eta_hrs"] = round(airports_by_dist[0][0] / 500 + 0.5, 1)
+
+        # Find nearest port
+        ports_by_dist = []
+        for pt in PORTS:
+            dist = _haversine_km(d_lat, d_lon, pt["lat"], pt["lon"])
+            if dist < 300:
+                ports_by_dist.append((dist, pt))
+        ports_by_dist.sort(key=lambda x: x[0])
+        if ports_by_dist:
+            nearest_port = ports_by_dist[0][1]
+            nearest_port["distance_km"] = round(ports_by_dist[0][0], 1)
+
     delay_hrs = random.choice([4, 5, 6])
 
     reason_map = {
-        "Flood": f"{route} bridge section submerged \u2014 water level 1.2m above road surface",
+        "Flood": f"{route} bridge section submerged — water level 1.2m above road surface",
         "Cyclone": f"{route} blocked by fallen trees and debris, clearance ETA unknown",
         "Earthquake": f"Structural damage on {route} overpass near {dest}, flagged unsafe",
         "Tsunami": f"Coastal section of {route} inundated, alternate inland route required",
-        "Armed Conflict": f"{route} checkpoint closed indefinitely, rerouting through {alt_route}",
+        "Landslide": f"{route} buried under debris — clearance 48-72hrs",
+        "Armed Conflict": f"{route} checkpoint closed indefinitely, rerouting through {alt_route_name}",
     }
-    block_reason = reason_map.get(crisis, f"{route} partially blocked \u2014 congestion and safety concerns reported")
+    block_reason = reason_map.get(crisis, f"{route} partially blocked — congestion and safety concerns reported")
+
+    # Build airlift action from real airport data
+    if nearest_airport:
+        ap = nearest_airport
+        airlift_action = (
+            f"Airlift 50 emergency units via {ap['name']} ({ap['code']}, "
+            f"{ap['distance_km']}km from {location}, runway {ap['runway_m']}m) — "
+            f"ETA {ap['airlift_eta_hrs']}hrs"
+        )
+        airlift_escalation = (
+            f"If road reroute fails: activate airlift from {ap['name']} ({ap['code']}), "
+            f"{ap['distance_km']}km, {ap['airlift_eta_hrs']}h flight"
+        )
+    else:
+        airlift_action = "Pre-position 50 emergency units from Kolkata via air freight"
+        airlift_escalation = "If reroute also blocked: activate IAF airlift from nearest base"
+
+    # Build sea freight note from real port data
+    if nearest_port:
+        pt = nearest_port
+        sea_note = (
+            f"Sea freight backup: {pt['name']} ({pt['city']}, {pt['distance_km']}km from {location}, "
+            f"capacity {pt['capacity_mt_yr']} MT/yr)"
+        )
+    else:
+        sea_note = f"If stock at {src} drops below 30 units: pull from Kolkata + Vizag simultaneously"
 
     return {
         "adjusted_actions": [
             {
                 "original_title": f"Dispatch convoy via {route}",
-                "adjusted_title": f"Reroute convoy via {alt_route}",
+                "adjusted_title": f"Reroute convoy via {alt_route_name}",
                 "change_type": "rerouted",
                 "reason": block_reason,
                 "new_priority": "critical",
@@ -117,7 +178,7 @@ def _build_fallback_replan(fb: dict, crisis_context: dict) -> dict:
         ],
         "emergency_measures": [
             {
-                "action": f"Pre-position 50 emergency units from Kolkata via air freight",
+                "action": airlift_action,
                 "rationale": "Bridge the gap while main convoy is rerouted",
                 "timeline_days": 1,
             },
@@ -127,18 +188,18 @@ def _build_fallback_replan(fb: dict, crisis_context: dict) -> dict:
             "total_days": 4,
             "milestones": [
                 {"day": 1, "description": f"Pick-pack done at {src}, convoy loaded"},
-                {"day": 2, "description": f"Convoy rerouted via {alt_route} \u2014 {block_reason[:60]}"},
+                {"day": 2, "description": f"Convoy rerouted via {alt_route_name} — {block_reason[:60]}"},
                 {"day": 3, "description": f"Main convoy arrives at {dest} (+{delay_hrs}h from original ETA)"},
-                {"day": 4, "description": f"Emergency airlift from Kolkata delivered, full handoff confirmed"},
+                {"day": 4, "description": f"{airlift_action[:80]}, full handoff confirmed"},
             ],
         },
         "escalation_steps": [
-            f"If {alt_route} also blocked: activate IAF airlift from nearest base",
-            f"If stock at {src} drops below 30 units: pull from Kolkata + Vizag simultaneously",
+            airlift_escalation,
+            sea_note,
         ],
         "risk_mitigation_summary": (
-            f"{route} blocked ({crisis.lower()} damage). Rerouted via {alt_route}, "
-            f"ETA now +{delay_hrs}hrs. Emergency 50-unit airlift from Kolkata covers the gap."
+            f"{route} blocked ({crisis.lower()} damage). Rerouted via {alt_route_name}, "
+            f"ETA now +{delay_hrs}hrs. {airlift_action[:80]}."
         ),
     }
 

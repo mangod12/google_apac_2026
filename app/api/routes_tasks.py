@@ -81,6 +81,7 @@ async def _run_pipeline(task_id: uuid.UUID, task_title: str, task_description: s
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
+    import app.tools.route_tool      # noqa: F401
 
     orchestrator = OrchestratorAgent()
     try:
@@ -219,6 +220,7 @@ async def _run_pipeline_and_build_response(query: str) -> ExecuteResponse:
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
+    import app.tools.route_tool      # noqa: F401
 
     async with async_session_factory() as session:
         repo = TaskRepository(session)
@@ -284,9 +286,10 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
     # Run full pipeline
     response = await _run_pipeline_and_build_response(cache_key)
 
-    # Cache the result
-    _response_cache[cache_key] = response.model_dump()
-    logger.info(f"[execute] cached response for: {cache_key[:60]}")
+    # Only cache preset scenarios — live queries should always hit Gemini
+    if cache_key in PRESET_QUERIES:
+        _response_cache[cache_key] = response.model_dump()
+        logger.info(f"[execute] cached response for: {cache_key[:60]}")
 
     return response
 

@@ -92,6 +92,7 @@ async def on_startup() -> None:
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
+    import app.tools.route_tool      # noqa: F401
     logger.info("Tools registered.")
 
     # Seed knowledge base with warehouse inventory and route data

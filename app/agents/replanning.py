@@ -11,7 +11,6 @@ import logging
 import uuid
 
 from app.agents.base import BaseAgent, AgentResult
-from app.llm.gemini_client import gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +20,13 @@ _SYSTEM_PROMPT = """You are an emergency logistics coordinator adjusting a faile
 Write like an ops manager filing a plan amendment after a route blockage or supply disruption. Be specific about what changed and why. Never say "adjusted plan for critical risk" — say "Rerouted via NH-59 after NH-16 flooding reported, ETA +3hrs".
 
 You are triggered when risk_level is "critical". Given the current plan, resource state, and execution status, you MUST:
-1. Identify which specific deliveries or tasks are blocked and why
-2. Reroute, reschedule, or swap warehouse sources with exact alternatives
-3. Add emergency measures only if standard rerouting is insufficient
-4. Update the timeline with new ETAs per milestone
-5. Define escalation contacts/steps if the adjusted plan also fails
+1. Use find_alternative_routes to get real driving alternatives between origin and destination — pass blocked roads in avoid_roads
+2. Use find_nearest_hubs at the destination to find airports/ports for airlift or sea freight
+3. Compare road detour ETA vs. airlift ETA vs. sea option and pick the best combination
+4. Reroute, reschedule, or swap warehouse sources with exact alternatives using real distances and ETAs from the tools
+5. Add emergency measures (airlift, sea freight) only if road rerouting ETA is too long
+6. Update the timeline with new ETAs per milestone based on real route data
+7. Define escalation contacts/steps if the adjusted plan also fails
 
 Your final response MUST be valid JSON with this structure:
 {
@@ -66,7 +67,7 @@ STYLE RULES:
 class ReplanningAgent(BaseAgent):
     name = "replanning"
     system_prompt = _SYSTEM_PROMPT
-    available_tools = []  # Pure Gemini reasoning
+    available_tools = ["find_alternative_routes", "find_nearest_hubs"]
 
     async def run(
         self,
@@ -93,45 +94,59 @@ Please:
 6. Return your adjusted plan as structured JSON
 """
 
-        try:
-            result = await gemini_client.generate_json(
-                prompt=prompt,
-                system_instruction=self.system_prompt,
-            )
+        result = await self.run_tool_loop(prompt=prompt, task_id=task_id)
 
-            replan_data = result.get("data", {})
-            token_usage = result.get("token_usage", 0)
+        if result.success:
+            replan_data = _extract_json(result.output.get("text", ""))
+            if isinstance(replan_data, dict) and replan_data.get("adjusted_actions"):
+                token_usage = result.token_usage
+                await self._log_step(
+                    task_id=task_id,
+                    action="replan_complete",
+                    output_data={
+                        "adjusted_action_count": len(replan_data.get("adjusted_actions", [])),
+                        "emergency_measure_count": len(replan_data.get("emergency_measures", [])),
+                    },
+                    reasoning=replan_data.get("risk_mitigation_summary", ""),
+                    token_usage=token_usage,
+                )
+                return AgentResult(
+                    agent_name=self.name,
+                    success=True,
+                    output={
+                        "replan": replan_data,
+                        "text": replan_data.get("risk_mitigation_summary", ""),
+                    },
+                    reasoning=replan_data.get("risk_mitigation_summary", ""),
+                    token_usage=token_usage,
+                    iterations=result.iterations,
+                )
 
-            await self._log_step(
-                task_id=task_id,
-                action="replan_complete",
-                output_data={
-                    "adjusted_action_count": len(replan_data.get("adjusted_actions", [])),
-                    "emergency_measure_count": len(replan_data.get("emergency_measures", [])),
-                },
-                reasoning=replan_data.get("risk_mitigation_summary", ""),
-                token_usage=token_usage,
-            )
+        # Tool loop failed or returned thin data — let orchestrator inject fallback
+        return AgentResult(
+            agent_name=self.name,
+            success=True,
+            output={"replan": {}, "text": ""},
+            reasoning="Tool loop returned incomplete replan, orchestrator will apply fallback",
+            error=result.error,
+        )
 
-            return AgentResult(
-                agent_name=self.name,
-                success=True,
-                output={
-                    "replan": replan_data,
-                    "text": replan_data.get("risk_mitigation_summary", ""),
-                },
-                reasoning=replan_data.get("risk_mitigation_summary", ""),
-                token_usage=token_usage,
-                iterations=1,
-            )
 
-        except Exception as e:
-            logger.exception(f"[replanning] failed: {e}")
-            # Return success=True with empty replan so orchestrator can inject fallback
-            return AgentResult(
-                agent_name=self.name,
-                success=True,
-                output={"replan": {}, "text": ""},
-                reasoning="LLM unavailable, orchestrator will apply fallback replan",
-                error=str(e),
-            )
+def _extract_json(text: str) -> dict:
+    """Extract JSON object from text, handling markdown fences."""
+    import json
+
+    if not text:
+        return {}
+    if "```" in text:
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        return {"raw": text}
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return {"raw": text[start:end + 1]}
