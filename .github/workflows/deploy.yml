@@ -7,7 +7,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    needs: []
     permissions:
       contents: read
       id-token: write
@@ -30,11 +29,28 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Build image
+      - name: Build and push image
         run: |
-          gcloud builds submit \
+          BUILD_ID=$(gcloud builds submit \
             --tag ${{ env.IMAGE }}:${{ github.sha }} \
-            --project ${{ env.PROJECT_ID }}
+            --project ${{ env.PROJECT_ID }} \
+            --async \
+            --format='value(id)')
+          echo "Build started: $BUILD_ID"
+
+          # Poll until complete
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project ${{ env.PROJECT_ID }} \
+              --format='value(status)')
+            echo "Build status: $STATUS"
+            if [ "$STATUS" = "SUCCESS" ]; then break; fi
+            if [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "CANCELLED" ] || [ "$STATUS" = "TIMEOUT" ]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Deploy to Cloud Run
         run: |
