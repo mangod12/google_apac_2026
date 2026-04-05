@@ -85,7 +85,15 @@ async def _init_db() -> None:
 
 
 async def _deferred_startup() -> None:
-    """Seed + warmup — runs AFTER uvicorn is already accepting connections."""
+    """DB init + seed + warmup — runs AFTER uvicorn is already accepting connections."""
+    # DB init (Cloud SQL proxy can take 10-30s on cold start)
+    try:
+        await _init_db()
+    except Exception as e:
+        logger.error(f"DB init failed: {e}")
+        return
+
+    # Seed knowledge base
     try:
         from app.db.seed import seed_knowledge_base
         seeded = await seed_knowledge_base()
@@ -94,6 +102,7 @@ async def _deferred_startup() -> None:
     except Exception as e:
         logger.warning(f"Knowledge base seeding failed (non-fatal): {e}")
 
+    # Warmup presets
     from app.api.routes_tasks import _warmup_presets, PRESET_QUERIES
     await _warmup_presets(PRESET_QUERIES)
     logger.info(f"Warmup complete for {len(PRESET_QUERIES)} preset scenarios.")
@@ -104,10 +113,7 @@ async def on_startup() -> None:
     import asyncio
     logger.info("TaskForge starting up...")
 
-    # DB init must complete before serving (fast, ~2s)
-    await _init_db()
-
-    # Register all tools (imports trigger tool_registry.register calls)
+    # Register all tools (pure Python imports — instant, no I/O)
     import app.tools.task_tools       # noqa: F401
     import app.tools.knowledge_tool   # noqa: F401
     import app.tools.calendar_tool    # noqa: F401
@@ -120,7 +126,7 @@ async def on_startup() -> None:
         f"vertex_ai={settings.use_vertex_ai}"
     )
 
-    # Seed + warmup in background — does NOT block port binding
+    # ALL I/O (DB + seed + warmup) runs after port binds
     asyncio.create_task(_deferred_startup())
 
 
