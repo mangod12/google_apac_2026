@@ -21,6 +21,7 @@ async def setup_database():
     """Create all tables once at session start. Tables are NOT dropped so the
     running dev server keeps working after tests finish."""
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield
 
