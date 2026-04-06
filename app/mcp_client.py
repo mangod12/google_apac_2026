@@ -49,4 +49,8 @@ async def call_tool_via_mcp(name: str, args: dict[str, Any]) -> dict[str, Any]:
         result = await tool_registry.execute(name, args)
         if isinstance(result, dict):
             result["_mcp_fallback"] = True
-        return result
+            return result
+        logger.warning(
+            f"[mcp_client] Tool '{name}' returned non-dict fallback type: {type(result).__name__}"
+        )
+        return {"result": result, "_mcp_fallback": True}

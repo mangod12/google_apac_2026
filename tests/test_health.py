@@ -15,9 +15,9 @@ async def test_health_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_health_db_connected(client):
-    from app.main import startup_complete
+    import app.startup_state as startup_state
 
-    startup_complete.set()
+    startup_state.startup_complete = True
     resp = await client.get("/health")
     data = resp.json()
     assert data["database"] == "connected"
@@ -26,9 +26,9 @@ async def test_health_db_connected(client):
 
 @pytest.mark.asyncio
 async def test_health_reports_starting_when_startup_incomplete(client):
-    from app.main import startup_complete
+    import app.startup_state as startup_state
 
-    startup_complete.clear()
+    startup_state.startup_complete = False
     resp = await client.get("/health")
     data = resp.json()
     assert data["status"] == "starting"

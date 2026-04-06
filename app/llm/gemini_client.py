@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import asyncio
+import threading
 from typing import Any, Optional
 
 from google import genai
@@ -33,12 +34,15 @@ def _build_client() -> genai.Client:
 # Module-level singleton (lazy)
 _client: Optional[genai.Client] = None
 _client_lock: Optional[asyncio.Lock] = None
+_client_lock_init_guard = threading.Lock()
 
 
 async def get_client() -> genai.Client:
     global _client, _client_lock
     if _client_lock is None:
-        _client_lock = asyncio.Lock()
+        with _client_lock_init_guard:
+            if _client_lock is None:
+                _client_lock = asyncio.Lock()
     if _client is None:
         async with _client_lock:
             if _client is None:

@@ -11,7 +11,6 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from app.schemas.task_schemas import HealthResponse
-from app.startup_state import startup_complete
 import app.startup_state as startup_state
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ async def health_check() -> HealthResponse:
     """
     from app.db.database import async_session_factory
 
-    if not startup_complete.is_set():
+    if not startup_state.startup_complete:
         return HealthResponse(status="starting", database="initializing", version="1.0.0")
 
     if startup_state.startup_error:

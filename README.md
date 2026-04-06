@@ -277,6 +277,17 @@ gcloud run deploy taskforge \
 
 ---
 
+## GCP Runtime Safety Notes
+
+- **CORS is now allowlist-based** via `CORS_ALLOWED_ORIGINS` (comma-separated). Keep this strict in production.
+- **Pipeline execution timeout** is controlled by `PIPELINE_TIMEOUT_SECONDS` (default: 300s) to avoid stuck background runs.
+- **Health endpoint readiness** now reports `starting` until deferred DB/bootstrap work completes.
+- **Cloud Run DB pooling** is tuned per instance (`pool_size=5`, `max_overflow=5` on Cloud Run) to reduce Cloud SQL connection pressure.
+- **MCP fallback observability**: when MCP transport fails and direct tool registry is used, tool output includes `_mcp_fallback: true`.
+- **Gemini client safety**: client singleton initialization is lock-guarded and model calls run in a worker thread to avoid event-loop blocking.
+
+---
+
 ## CI/CD Pipeline
 
 Two GitHub Actions workflows run automatically:

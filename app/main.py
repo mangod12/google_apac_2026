@@ -29,7 +29,6 @@ from app.api.routes_health import router as health_router
 from app.api.routes_tasks import demo_router, router as tasks_router
 from app.config import settings
 from app.mcp_server import mcp as mcp_server
-from app.startup_state import startup_complete
 import app.startup_state as startup_state
 
 # ── Logging setup ────────────────────────────────────────
@@ -133,7 +132,7 @@ async def on_startup() -> None:
             startup_state.startup_error = str(exc)
             logger.exception("Deferred startup failed")
         finally:
-            startup_complete.set()
+            startup_state.startup_complete = True
 
     asyncio.create_task(_run_startup_work())
 
