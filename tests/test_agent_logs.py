@@ -1,8 +1,18 @@
 """E2E tests for agent logs endpoint."""
 
+import os
+import uuid
+
 import pytest
 
+# Skip LLM-dependent tests when no Gemini API key is configured
+_requires_llm = pytest.mark.skipif(
+    not os.environ.get("GEMINI_API_KEY") and not os.environ.get("VERTEX_AI_PROJECT"),
+    reason="GEMINI_API_KEY or VERTEX_AI_PROJECT not set — skipping LLM-dependent tests",
+)
 
+
+@_requires_llm
 @pytest.mark.asyncio
 async def test_logs_after_execute(client):
     """Agent logs are created during pipeline execution."""
@@ -41,7 +51,6 @@ async def test_logs_after_execute(client):
 @pytest.mark.asyncio
 async def test_logs_not_found_for_missing_task(client):
     """Logs endpoint returns 404 for nonexistent task."""
-    import uuid
     fake_id = uuid.uuid4()
     resp = await client.get(f"/api/v1/tasks/{fake_id}/logs")
     assert resp.status_code == 404

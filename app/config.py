@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     max_agent_iterations: int = Field(default=10, description="Max tool-call loops per agent run")
     log_level: str = Field(default="INFO")
 
+    # ── CORS ─────────────────────────────────────────────
+    cors_origins: list[str] = Field(
+        default=["*"],
+        description="Allowed CORS origins. Restrict to specific domains in production.",
+    )
+
     @property
     def use_vertex_ai(self) -> bool:
         return self.vertex_ai_project is not None and self.gemini_api_key is None

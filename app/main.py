@@ -14,9 +14,11 @@ Routes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import logging.config
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -37,31 +39,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-
-# ── FastAPI app ──────────────────────────────────────────
-
-app = FastAPI(
-    title="TaskForge — Multi-Agent Orchestration API",
-    description=(
-        "A production-grade multi-agent system where an Orchestrator coordinates "
-        "Planner, Researcher, and Reviewer sub-agents to break down, research, plan, "
-        "and validate complex tasks — powered by Gemini (Vertex AI) and PostgreSQL."
-    ),
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
-
-# ── CORS ─────────────────────────────────────────────────
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Tighten in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 # ── Startup / Shutdown ───────────────────────────────────
@@ -108,9 +85,9 @@ async def _deferred_startup() -> None:
     logger.info(f"Warmup complete for {len(PRESET_QUERIES)} preset scenarios.")
 
 
-@app.on_event("startup")
-async def on_startup() -> None:
-    import asyncio
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: startup and shutdown logic."""
     logger.info("TaskForge starting up...")
 
     # Register all tools (pure Python imports — instant, no I/O)
@@ -129,12 +106,37 @@ async def on_startup() -> None:
     # ALL I/O (DB + seed + warmup) runs after port binds
     asyncio.create_task(_deferred_startup())
 
+    yield
 
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
     logger.info("TaskForge shutting down...")
     from app.db.database import engine
     await engine.dispose()
+
+
+# ── FastAPI app ──────────────────────────────────────────
+
+app = FastAPI(
+    title="TaskForge — Multi-Agent Orchestration API",
+    description=(
+        "A production-grade multi-agent system where an Orchestrator coordinates "
+        "Planner, Researcher, and Reviewer sub-agents to break down, research, plan, "
+        "and validate complex tasks — powered by Gemini (Vertex AI) and PostgreSQL."
+    ),
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
+
+# ── CORS ─────────────────────────────────────────────────
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── Routers ──────────────────────────────────────────────
@@ -184,3 +186,4 @@ async def root():
     if index.exists():
         return HTMLResponse(content=index.read_text(encoding="utf-8"))
     return HTMLResponse(content="<h1>TaskForge API running</h1>")
+

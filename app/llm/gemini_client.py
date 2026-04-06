@@ -34,10 +34,16 @@ _client: Optional[genai.Client] = None
 
 
 def get_client() -> genai.Client:
+    """Return the shared genai client (synchronous interface for non-async contexts)."""
     global _client
     if _client is None:
         _client = _build_client()
     return _client
+
+
+def get_async_models():
+    """Return the async models interface (client.aio.models)."""
+    return get_client().aio.models
 
 
 class GeminiClient:
@@ -53,11 +59,9 @@ class GeminiClient:
         response_mime_type: Optional[str] = None,
     ) -> dict[str, Any]:
         """
-        Generate text from Gemini.
+        Generate text from Gemini (non-blocking async).
         Returns {"text": str, "token_usage": int}
         """
-        client = get_client()
-
         config_kwargs: dict[str, Any] = {}
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
@@ -66,7 +70,7 @@ class GeminiClient:
 
         config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
-        response = client.models.generate_content(
+        response = await get_async_models().generate_content(
             model=self.model,
             contents=prompt,
             config=config,
@@ -127,15 +131,13 @@ class GeminiClient:
         tools: Optional[list[dict]] = None,
     ) -> dict[str, Any]:
         """
-        Generate with function-calling tools.
+        Generate with function-calling tools (non-blocking async).
         Returns {
             "text": str | None,
             "function_calls": [{"name": str, "args": dict}] | None,
             "token_usage": int
         }
         """
-        client = get_client()
-
         config_kwargs: dict[str, Any] = {}
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
@@ -157,7 +159,7 @@ class GeminiClient:
 
         config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
-        response = client.models.generate_content(
+        response = await get_async_models().generate_content(
             model=self.model,
             contents=prompt,
             config=config,

@@ -180,7 +180,14 @@ class MemoryRepository:
         if not keywords:
             keywords = [query]
 
-        conditions = [MemoryEntry.content.ilike(f"%{kw}%") for kw in keywords]
+        # Escape LIKE wildcards to prevent unintended pattern matching
+        def _escape_like(kw: str) -> str:
+            return kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+        conditions = [
+            MemoryEntry.content.ilike(f"%{_escape_like(kw)}%", escape="\\")
+            for kw in keywords
+        ]
         result = await self.session.execute(
             select(MemoryEntry)
             .where(or_(*conditions))

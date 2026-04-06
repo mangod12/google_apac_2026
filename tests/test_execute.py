@@ -1,8 +1,18 @@
 """E2E tests for the /execute demo endpoint (full agent pipeline)."""
 
+import os
+
 import pytest
 
+# Skip all LLM-dependent tests when no Gemini API key is configured.
+# These require a live Gemini API call and are excluded from CI by default.
+_requires_llm = pytest.mark.skipif(
+    not os.environ.get("GEMINI_API_KEY") and not os.environ.get("VERTEX_AI_PROJECT"),
+    reason="GEMINI_API_KEY or VERTEX_AI_PROJECT not set — skipping LLM-dependent tests",
+)
 
+
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_flood_crisis(client):
     """Full pipeline for a flood crisis — the core demo scenario."""
@@ -78,6 +88,7 @@ async def test_execute_flood_crisis(client):
     assert "300" in data["outcome_summary"]
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_cyclone_triggers_replan(client):
     """Cyclone keyword forces replanning."""
@@ -92,6 +103,7 @@ async def test_execute_cyclone_triggers_replan(client):
     assert data["confidence_score"] < 0.90
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_earthquake_scenario(client):
     """Earthquake crisis with replanning."""
@@ -104,6 +116,7 @@ async def test_execute_earthquake_scenario(client):
     assert data["replanning"] is not None
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_non_crisis_no_replan(client):
     """Non-crisis query should not trigger replanning."""
@@ -116,6 +129,7 @@ async def test_execute_non_crisis_no_replan(client):
     assert data["confidence_score"] >= 0.85
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_impact_analysis(client):
     """Impact analysis returned with proper structure."""
@@ -129,6 +143,7 @@ async def test_execute_impact_analysis(client):
     assert "risk" in ia
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_system_state(client):
     """System state telemetry is present."""
@@ -146,6 +161,7 @@ async def test_execute_system_state(client):
     assert len(data.get("outcome_summary", "")) > 10
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_decision_comparison(client):
     """Decision comparison text is present."""
@@ -158,6 +174,7 @@ async def test_execute_decision_comparison(client):
     assert "Decision" in dc
 
 
+@_requires_llm
 @pytest.mark.asyncio
 async def test_execute_persists_to_db(client):
     """After /execute, the task is persisted and retrievable."""
