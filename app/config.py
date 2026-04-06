@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # ── Agent Settings ───────────────────────────────────
     max_agent_iterations: int = Field(default=10, description="Max tool-call loops per agent run")
-    pipeline_timeout_seconds: int = Field(default=300, description="Max wall time for one pipeline run")
+    pipeline_timeout_seconds: int = Field(default=270, description="Max wall time for one pipeline run (30s before Cloud Run kills the request)")
     log_level: str = Field(default="INFO")
 
     # ── Security / CORS ───────────────────────────────────

@@ -254,8 +254,12 @@ async def _run_pipeline_and_build_response(query: str) -> ExecuteResponse:
     t_start = time.monotonic()
 
     orchestrator = OrchestratorAgent()
-    result = await orchestrator.run(
-        task_id=task_id, task_title=query, task_description=query,
+    from app.config import settings
+    result = await asyncio.wait_for(
+        orchestrator.run(
+            task_id=task_id, task_title=query, task_description=query,
+        ),
+        timeout=settings.pipeline_timeout_seconds,
     )
 
     if not result.success:
@@ -345,7 +349,10 @@ async def _warmup_one(q: str) -> None:
         return
     try:
         logger.info(f"[warmup] running: {q[:60]}")
-        response = await _run_pipeline_and_build_response(q)
+        response = await asyncio.wait_for(
+            _run_pipeline_and_build_response(q),
+            timeout=120.0,
+        )
         _response_cache[q] = response.model_dump()
         _save_preset_cache()
         logger.info(f"[warmup] cached: {q[:60]}")

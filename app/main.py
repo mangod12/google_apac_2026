@@ -83,6 +83,23 @@ async def _init_db() -> None:
             ))
         except Exception:
             pass
+        # Ensure FK matches model's ondelete="SET NULL" (create_all won't update existing constraints)
+        try:
+            await conn.execute(sa_text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'memory_entries_task_id_fkey' AND confdeltype != 's'
+                    ) THEN
+                        ALTER TABLE memory_entries DROP CONSTRAINT memory_entries_task_id_fkey;
+                        ALTER TABLE memory_entries ADD CONSTRAINT memory_entries_task_id_fkey
+                            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
+                    END IF;
+                END $$;
+            """))
+        except Exception:
+            pass
     logger.info("Database tables verified/created (pgvector enabled).")
 
 

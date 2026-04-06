@@ -18,7 +18,7 @@ async def generate_embedding(text: str) -> list[float]:
     """Generate a 3072-dim embedding for a text string using Gemini."""
     from app.llm.gemini_client import get_client
 
-    client = get_client()
+    client = await get_client()
     response = client.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text[:2000],  # Truncate to avoid token limits

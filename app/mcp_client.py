@@ -30,7 +30,7 @@ async def call_tool_via_mcp(name: str, args: dict[str, Any]) -> dict[str, Any]:
         from mcp.client.sse import sse_client
         from mcp import ClientSession
 
-        async with sse_client(_get_mcp_sse_url()) as (read_stream, write_stream):
+        async with sse_client(_get_mcp_sse_url(), timeout=10, sse_read_timeout=30) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 result = await session.call_tool(name, args)
