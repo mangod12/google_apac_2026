@@ -50,13 +50,15 @@ STYLE RULES:
 - Never repeat the user's query text verbatim in the summary
 - Use specific item names (rice, medical kits, tarpaulin) not "supplies"
 - Include location names when available (district, city, warehouse ID)
+- Never use "initiated", "leveraging", "coordinated", "comprehensive" — write plain warehouse status language
+- Say "300 rice units short at Puri depot" not "critical shortage identified in target zone"
 """
 
 
 class ResourceAgent(BaseAgent):
     name = "resource"
     system_prompt = _SYSTEM_PROMPT
-    available_tools = ["knowledge_lookup", "live_weather", "disaster_check", "find_nearest_hubs"]
+    available_tools = ["knowledge_lookup", "live_weather", "disaster_check", "find_nearest_hubs", "disaster_feed"]
 
     async def run(
         self,

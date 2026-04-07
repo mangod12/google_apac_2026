@@ -41,25 +41,32 @@ curl -X POST https://taskforge-ebqzvaqu6a-el.a.run.app/execute \
                     |   (Central Coordinator)|
                     +-----------+-----------+
                                 |
-            +-------------------+-------------------+
-            |                   |                   |
-            v                   v                   v
-    +-------+------+   +-------+------+   +--------+-----+
-    | ResourceAgent |   | PlanningAgent|   | ExecutionAgent|
-    | (Inventory +  |   | (Route +     |   | (Dispatch +   |
-    |  Risk Audit)  |   |  Strategy)   |   |  Scheduling)  |
-    +-------+------+   +-------+------+   +--------+-----+
-            |                   |                   |
-            +-------------------+-------------------+
+                  Step 1        |
+                    +-----------+-----------+
+                    |   ResourceAgent       |
+                    |   (Inventory + Risk)  |
+                    +-----------+-----------+
                                 |
-                     (if crisis keyword detected)
+                  Step 2        |
+                    +-----------+-----------+
+                    |   PlanningAgent       |
+                    |   (Route + Strategy)  |
+                    +-----------+-----------+
                                 |
-                                v
+                  Step 3        | (if crisis keyword detected)
                     +-----------+-----------+
                     |   ReplanningAgent     |
-                    |   (Reroute + Adapt)   |
+                    |   (Reroute + Amend)   |
+                    +-----------+-----------+
+                                |
+                  Step 4        | (uses amended plan)
+                    +-----------+-----------+
+                    |   ExecutionAgent      |
+                    |   (Dispatch + Sched.) |
                     +-----------------------+
 ```
+
+The pipeline is **sequential by design**: each agent's output feeds the next. ReplanningAgent runs *before* Execution as a pre-execution risk gate -- if it detects critical risks, it amends the plan, and ExecutionAgent dispatches the corrected version.
 
 All agents use **Gemini 2.5 Flash** via function calling. Tools are exposed via **MCP (Model Context Protocol)** over SSE transport. Each agent has deterministic fallback logic that produces realistic operational output when the LLM is unavailable.
 
@@ -67,10 +74,10 @@ All agents use **Gemini 2.5 Flash** via function calling. Tools are exposed via 
 
 ## What It Does
 
-1. **ResourceAgent** audits warehouse inventory and computes shortage severity (Critical/Moderate/Low based on unit thresholds)
+1. **ResourceAgent** audits warehouse inventory, computes shortage severity (Critical/Moderate/Low), and flags risk factors
 2. **PlanningAgent** selects the optimal source depot, compares cost and ETA across warehouses, generates a multi-step dispatch plan
-3. **ExecutionAgent** creates subtasks, schedules deliveries, assigns truck counts and routes
-4. **ReplanningAgent** fires when crisis keywords (flood, cyclone, earthquake, etc.) are detected - reroutes convoys, adds emergency airlifts, updates ETAs
+3. **ReplanningAgent** fires when crisis keywords (flood, cyclone, earthquake, etc.) are detected -- amends the plan *before* execution: reroutes convoys, adds emergency airlifts, updates ETAs
+4. **ExecutionAgent** executes the (potentially amended) plan: creates subtasks, schedules deliveries, assigns truck counts and routes
 
 The system returns **17 structured fields** per execution:
 
@@ -87,7 +94,7 @@ The system returns **17 structured fields** per execution:
 | `risk_notes` | Active risks (flooding, fuel uncertainty, cascade delays) |
 | `decision_comparison` | Side-by-side warehouse cost/ETA comparison |
 | `system_state` | Live telemetry: agents, decisions made, replans, confidence trend |
-| `reasoning_trace` | Raw LLM thought process per agent with token counts |
+| `reasoning_trace` | Step-by-step LLM thought process per agent (Resource -> Planning -> Replanning -> Execution) with token counts |
 | `impact_analysis` | What happens *without* TaskForge (delay, unmet demand) |
 | `replanning` | Reroute changes + emergency measures (when triggered) |
 | `system_reliability` | Test coverage, pipeline validation status |
@@ -317,7 +324,7 @@ To enable CD, add a `GCP_SA_KEY` secret in GitHub repo settings containing the s
 
 **Deterministic fallbacks**: Every agent has hardcoded fallback data that produces ops-engineer quality output. The system is fully functional even without LLM access - validated by running the full pipeline with billing disabled.
 
-**Forced replanning**: `_should_force_replan()` checks for crisis keywords (flood, cyclone, war, etc.) in the query. This guarantees replanning fires for demo scenarios regardless of LLM risk assessment.
+**Pre-execution replanning**: ReplanningAgent runs *before* ExecutionAgent as a risk gate. If crisis keywords are detected or risk_level is critical, it amends the plan (reroutes, swaps sources, adds emergency measures) so ExecutionAgent dispatches the corrected version. `_should_force_replan()` checks for crisis keywords (flood, cyclone, war, etc.) in the query, guaranteeing replanning fires for demo scenarios regardless of LLM risk assessment.
 
 **Rule-based crisis extraction**: Location, crisis type, resource, and severity are extracted via lookup tables + regex, not LLM. This makes crisis context deterministic and instant.
 

@@ -117,10 +117,10 @@ async def _deferred_startup() -> None:
     except Exception as e:
         logger.warning(f"Knowledge base seeding failed (non-fatal): {e}")
 
-    # Warmup presets
-    from app.api.routes_tasks import _warmup_presets, PRESET_QUERIES
-    await _warmup_presets(PRESET_QUERIES)
-    logger.info(f"Warmup complete for {len(PRESET_QUERIES)} preset scenarios.")
+    # Presets are hardcoded in preset_data.py — no warmup needed
+    from app.api.routes_tasks import _response_cache, PRESET_QUERIES
+    cached = len([q for q in PRESET_QUERIES if q in _response_cache])
+    logger.info(f"Presets ready: {cached}/{len(PRESET_QUERIES)} loaded from hardcoded data.")
 
 
 @app.on_event("startup")
@@ -133,6 +133,7 @@ async def on_startup() -> None:
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
     import app.tools.route_tool      # noqa: F401
+    import app.tools.disaster_feed   # noqa: F401
     logger.info("Tools registered.")
 
     logger.info(

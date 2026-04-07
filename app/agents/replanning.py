@@ -19,7 +19,7 @@ _SYSTEM_PROMPT = """You are an emergency logistics coordinator adjusting a faile
 
 Write like an ops manager filing a plan amendment after a route blockage or supply disruption. Be specific about what changed and why. Never say "adjusted plan for critical risk" — say "Rerouted via NH-59 after NH-16 flooding reported, ETA +3hrs".
 
-You are triggered when risk_level is "critical". Given the current plan, resource state, and execution status, you MUST:
+You are triggered when risk_level is "critical" BEFORE execution begins. Given the current plan and resource state, you MUST amend the plan so execution uses the corrected version:
 1. Use find_alternative_routes to get real driving alternatives between origin and destination — pass blocked roads in avoid_roads
 2. Use find_nearest_hubs at the destination to find airports/ports for airlift or sea freight
 3. Compare road detour ETA vs. airlift ETA vs. sea option and pick the best combination
@@ -60,7 +60,9 @@ STYLE RULES:
 - change reasons must be specific: "NH-16 bridge submerged, 4hr detour via NH-59" not "route disruption"
 - emergency measures: "Airlift 100 medical kits from Kolkata IAF base, 6hr delivery" not "emergency airlift"
 - risk_mitigation_summary: "Switched source to Kolkata warehouse, rerouted via NH-59, ETA now 5hrs (+3hrs)" not "Critical risk mitigation applied"
-- Never use "initiated", "leveraging", "coordinated approach"
+- Never use "initiated", "leveraging", "coordinated approach", "comprehensive", "mitigated"
+- Write in plain operational language: "rerouted via X because Y" not "applied mitigation strategy"
+- Every action must name a specific road, depot, or airport — no vague references
 """
 
 
@@ -79,19 +81,21 @@ class ReplanningAgent(BaseAgent):
         """Adjust plan and schedule to mitigate critical risks."""
         logger.info(f"[replanning] starting for task {task_id}: {task_title!r}")
 
-        prompt = f"""CRITICAL RISK detected — replan supply chain for: {task_title}
+        prompt = f"""CRITICAL RISK detected — amend plan BEFORE execution for: {task_title}
 
 Description: {task_description}
 
-{f"Current State:{chr(10)}{context}" if context else "No prior context — propose emergency measures based on the task description."}
+{f"Resource Assessment & Plan:{chr(10)}{context}" if context else "No prior context — propose emergency measures based on the task description."}
+
+Execution has NOT started yet. Your amended plan will be passed directly to the Execution Agent.
 
 Please:
-1. Identify the most critical risk factors affecting the current plan
-2. Propose adjusted actions (reprioritize, reschedule, add emergency measures)
-3. Reallocate resources to address urgent shortages
-4. Update the timeline with emergency adjustments
-5. Define escalation steps if adjusted plan also fails
-6. Return your adjusted plan as structured JSON
+1. Identify which planned actions are blocked or at risk
+2. Amend those actions with specific alternatives (reroute, swap source, reschedule)
+3. Add emergency measures only if road rerouting is insufficient
+4. Update the timeline with amended ETAs per milestone
+5. Define escalation steps if the amended plan also fails
+6. Return your amended plan as structured JSON
 """
 
         result = await self.run_tool_loop(prompt=prompt, task_id=task_id)

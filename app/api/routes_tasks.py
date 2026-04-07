@@ -39,38 +39,9 @@ demo_router = APIRouter(tags=["demo"])
 
 # ── Response cache for demo presets ────────────────────────
 
-import json as _json
-from pathlib import Path as _Path
+from app.preset_data import PRESET_RESPONSES
 
-_PRESET_CACHE_FILE = _Path(__file__).parent.parent / "preset_cache.json"
-
-
-def _load_preset_cache() -> dict[str, dict]:
-    """Load pre-computed Gemini responses for preset scenarios."""
-    if _PRESET_CACHE_FILE.exists():
-        try:
-            with open(_PRESET_CACHE_FILE, encoding="utf-8") as f:
-                data = _json.load(f)
-            logger.info(f"[cache] Loaded {len(data)} preset responses from preset_cache.json")
-            return data
-        except Exception as e:
-            logger.warning(f"[cache] Failed to load preset_cache.json: {e}")
-    return {}
-
-
-def _save_preset_cache() -> None:
-    """Persist in-memory preset cache to disk so it survives instance restarts."""
-    try:
-        preset_data = {k: v for k, v in _response_cache.items() if k in PRESET_QUERIES}
-        if preset_data:
-            with open(_PRESET_CACHE_FILE, "w", encoding="utf-8") as f:
-                _json.dump(preset_data, f, ensure_ascii=False)
-            logger.info(f"[cache] Saved {len(preset_data)} presets to preset_cache.json")
-    except Exception as e:
-        logger.warning(f"[cache] Failed to save preset_cache.json: {e}")
-
-
-_response_cache: dict[str, dict] = _load_preset_cache()
+_response_cache: dict[str, dict] = dict(PRESET_RESPONSES)
 
 PRESET_QUERIES = [
     "Flood in Odisha causing food shortage across 3 districts \u2014 300 units needed urgently",
@@ -95,6 +66,7 @@ async def _run_pipeline(task_id: uuid.UUID, task_title: str, task_description: s
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
     import app.tools.route_tool      # noqa: F401
+    import app.tools.disaster_feed   # noqa: F401
 
     orchestrator = OrchestratorAgent()
     from app.config import settings
@@ -167,6 +139,8 @@ def _build_execute_response(
     outcome_summary: str = "",
     system_reliability: dict | None = None,
     reasoning_trace: list[dict] | None = None,
+    live_data: dict | None = None,
+    logistics_metrics: dict | None = None,
 ) -> ExecuteResponse:
     """Build a clean synchronous demo response from stored task results."""
     from app.schemas.task_schemas import SystemReliability
@@ -193,6 +167,8 @@ def _build_execute_response(
         outcome_summary=outcome_summary,
         system_reliability=SystemReliability(**(system_reliability or {})),
         reasoning_trace=reasoning_trace or [],
+        live_data=live_data,
+        logistics_metrics=logistics_metrics,
     )
 
 
@@ -245,6 +221,7 @@ async def _run_pipeline_and_build_response(query: str) -> ExecuteResponse:
     import app.tools.calendar_tool    # noqa: F401
     import app.tools.weather_tool     # noqa: F401
     import app.tools.route_tool      # noqa: F401
+    import app.tools.disaster_feed   # noqa: F401
 
     async with async_session_factory() as session:
         repo = TaskRepository(session)
@@ -293,6 +270,8 @@ async def _run_pipeline_and_build_response(query: str) -> ExecuteResponse:
         outcome_summary=result.output.get("outcome_summary", ""),
         system_reliability=result.output.get("system_reliability"),
         reasoning_trace=result.output.get("reasoning_trace", []),
+        live_data=result.output.get("live_data"),
+        logistics_metrics=result.output.get("logistics_metrics"),
     )
 
 
@@ -317,7 +296,7 @@ async def execute_task(payload: ExecuteRequest) -> ExecuteResponse:
     # Only cache preset scenarios — live queries should always hit Gemini
     if cache_key in PRESET_QUERIES:
         _response_cache[cache_key] = response.model_dump()
-        _save_preset_cache()
+        # Cache is hardcoded in preset_data.py — runtime updates stay in-memory only
         logger.info(f"[execute] cached response for: {cache_key[:60]}")
 
     return response
@@ -351,10 +330,10 @@ async def _warmup_one(q: str) -> None:
         logger.info(f"[warmup] running: {q[:60]}")
         response = await asyncio.wait_for(
             _run_pipeline_and_build_response(q),
-            timeout=120.0,
+            timeout=240.0,
         )
         _response_cache[q] = response.model_dump()
-        _save_preset_cache()
+        # Cache is hardcoded in preset_data.py — runtime updates stay in-memory only
         logger.info(f"[warmup] cached: {q[:60]}")
     except Exception as e:
         logger.error(f"[warmup] failed for '{q[:60]}': {e}")

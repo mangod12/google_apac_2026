@@ -118,3 +118,5 @@ class ExecuteResponse(BaseModel):
     system_reliability: SystemReliability = Field(default_factory=SystemReliability)
     outcome_summary: str = ""
     reasoning_trace: list[dict[str, Any]] = Field(default_factory=list)
+    live_data: Optional[dict[str, Any]] = None
+    logistics_metrics: Optional[dict[str, Any]] = None

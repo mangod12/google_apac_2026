@@ -98,6 +98,7 @@
   .reasoning-entry { margin-bottom: .75rem; padding: .6rem .85rem; background: var(--bg); border-radius: .4rem; border-left: 3px solid #8b5cf6; }
   .reasoning-agent { font-size: .78rem; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .25rem; }
   .reasoning-agent .token-badge { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: .5rem; font-size: .72rem; }
+  .reasoning-agent .step-badge { font-size: .68rem; font-weight: 600; color: #8b5cf6; background: #8b5cf618; padding: .1rem .35rem; border-radius: .25rem; text-transform: none; letter-spacing: 0; margin-right: .3rem; }
   .reasoning-thought { font-size: .84rem; line-height: 1.5; color: var(--muted); white-space: pre-line; }
 
   .card-impact { background: #ef44440d; border: 1px solid #ef444433; }
@@ -468,10 +469,11 @@ function render(d) {
   const rtCard = document.getElementById('reasoningCard');
   if (rt.length) {
     rtCard.style.display = '';
-    document.getElementById('reasoningBody').innerHTML = rt.map(r => {
+    document.getElementById('reasoningBody').innerHTML = rt.map((r, i) => {
       const tokens = r.tokens ? '<span class="token-badge">' + r.tokens + ' tokens</span>' : '';
+      const step = '<span class="step-badge">Step ' + (i + 1) + '</span> ';
       return '<div class="reasoning-entry">' +
-        '<div class="reasoning-agent">' + (r.agent || 'Agent') + tokens + '</div>' +
+        '<div class="reasoning-agent">' + step + (r.agent || 'Agent') + tokens + '</div>' +
         '<div class="reasoning-thought">' + (r.thought || '').replace(/</g, '&lt;') + '</div>' +
         '</div>';
     }).join('');

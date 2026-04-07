@@ -65,7 +65,8 @@ STYLE RULES:
 - task titles: "Load 300 rice units at Bhubaneswar dock 3", not "Prepare shipment"
 - delivery descriptions must include origin → destination → route
 - summary: "4 trucks dispatched via NH-16, ETA 2hrs to Puri distribution center"
-- Never use "initiated", "leveraging", "coordinated"
+- Never use "initiated", "leveraging", "coordinated", "comprehensive", "mitigated"
+- Write like a dispatch log: "Loaded 4 trucks at dock 3, rolling on NH-16" not "Execution phase completed"
 - Minimum 3 tasks, minimum 1 delivery
 - IMPORTANT: batch all tool calls in as few rounds as possible — call multiple tools at once
 """

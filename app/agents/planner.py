@@ -110,6 +110,8 @@ STYLE RULES:
 - action titles must be imperative verbs: "Book 4 trucks from Cuttack depot", not "Truck arrangement"
 - milestones must be specific: "Day 1: Warehouse pick-pack complete" not "Day 1: Preparation"
 - Never echo the user's crisis description back as the strategy
+- Never use "initiated", "leveraging", "coordinated", "comprehensive" — write like an ops briefing
+- Say "Ship 200 medical kits from Bhubaneswar to Puri via NH-16" not "Initiate redistribution of supplies"
 - Minimum 3 actions, minimum 3 milestones
 """
 
